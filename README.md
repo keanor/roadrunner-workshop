@@ -7,7 +7,7 @@ I was impressed by similarities between Zend Framework 3 and Zend Expressive 3, 
 ![Screenshot](blog-posts.png)
 
 ### Post module structure
-![Screenshot](blog-posts.png)
+![Screenshot](post-module.png)
 
 ## Components
 The components used in the example nclude:
