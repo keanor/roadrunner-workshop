@@ -1,0 +1,23 @@
+<?php $this->layout('layout::default', ['title' => 'Blog Posts']) ?>
+<h1>Blog Posts</h1>
+
+<div class="list-group">
+<?php foreach ($posts as $post): ?>
+  <div class="list-group-item">
+    <h4 class="list-group-item-heading">
+      <a href="<?= $this->url('post.detail',[], ['id' => $post->getId()]) ?>">
+        <?= $post->getTitle() ?>
+      </a>
+    </h4>
+
+    <div class="btn-group" role="group" aria-label="Post actions">
+      <a class="btn btn-xs btn-primary" href="<?= $this->url('post.update', [], ['id' => $post->getId()]) ?>">Edit</a>
+      <a class="btn btn-xs btn-danger" href="<?= $this->url('post.delete', [], ['id' => $post->getId()]) ?>">Delete</a>
+    </div>
+  </div>
+<?php endforeach ?>
+</div>
+
+<div class="btn-group" role="group" aria-label="Post actions">
+  <a class="btn btn-primary" href="<?= $this->url('post.create') ?>">Write new post</a>
+</div>

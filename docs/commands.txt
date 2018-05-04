@@ -1,0 +1,27 @@
+Create a new project
+$ composer create-project zendframework/zend-expressive-skeleton expressive
+
+Start a web server
+$ composer run --timeout=0 serve
+
+Development Mode
+$ composer development-enable  # enable development mode
+$ composer development-disable # disable development mode
+$ composer development-status  # show development status
+
+Clear config cache
+$ composer clear-config-cache
+
+Testing Your Code
+$ composer check
+
+Tooling integration
+$ composer expressive
+
+Creating middleware
+$ composer expressive middleware:create "App\XClacksOverheadMiddleware"
+
+Creating request handlers
+$ composer expressive handler:create "App\Handler\HelloHandler"
+
+

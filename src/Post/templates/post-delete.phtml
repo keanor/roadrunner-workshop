@@ -1,0 +1,14 @@
+<?php $this->layout('layout::default', ['title' => 'Delete Post']) ?>
+<h1>Delete post</h1>
+
+<p>Are you sure you want to delete the following post?</p>
+
+<ul class="list-group">
+    <li class="list-group-item"><?= $this->escapeHtml($post->getTitle()) ?></li>
+</ul>
+
+<form action="<?= $this->url('post.delete', [], ['id'=>$post->getId()]) ?>" method="post">
+    <input type="hidden" name="id" value="<?= $this->escapeHtmlAttr($post->getId()) ?>" />
+    <input class="btn btn-default" type="submit" name="confirm" value="Cancel" />
+    <input class="btn btn-danger" type="submit" name="confirm" value="Delete" />
+</form>
