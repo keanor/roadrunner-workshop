@@ -10,7 +10,7 @@ I was impressed by similarities between Zend Framework 3 and Zend Expressive 3, 
 ![Screenshot](post-module.png)
 
 ## Components
-The components used in the example nclude:
+The components used in the example include:
 
 Zend expressive 3,
 Zend-Db,
