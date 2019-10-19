@@ -1,10 +1,10 @@
 {
     "_readme": [
         "This file locks the dependencies of your project to a known state",
-        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
+        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#composer-lock-the-lock-file",
         "This file is @generated automatically"
     ],
-    "content-hash": "7c70e7788cf5237d2a99aacf6a2bb5ba",
+    "content-hash": "2faf4580816cc427c623f1b4cb68d1f3",
     "packages": [
         {
             "name": "container-interop/container-interop",
@@ -909,6 +909,72 @@
                 "zf"
             ],
             "time": "2018-04-10T16:22:30+00:00"
+        },
+        {
+            "name": "zendframework/zend-expressive-authentication",
+            "version": "1.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/zendframework/zend-expressive-authentication.git",
+                "reference": "d602ab47649cd550ffc9c745cb6de862d6c8a862"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/zendframework/zend-expressive-authentication/zipball/d602ab47649cd550ffc9c745cb6de862d6c8a862",
+                "reference": "d602ab47649cd550ffc9c745cb6de862d6c8a862",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^7.1",
+                "psr/container": "^1.0",
+                "psr/http-message": "^1.0.1",
+                "psr/http-server-middleware": "^1.0"
+            },
+            "conflict": {
+                "container-interop/container-interop": "<1.2.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^7.0.2",
+                "roave/security-advisories": "dev-master",
+                "zendframework/zend-coding-standard": "~1.0.0"
+            },
+            "suggest": {
+                "ext-pdo": "*: for use with the PDO-backed UserRepositoryInterface implementation",
+                "zendframework/zend-expressive-authentication-basic": "Provides an HTTP Basic Authentication AuthenticationInterface implementation",
+                "zendframework/zend-expressive-authentication-session": "Provides a username/password + session AuthenticationInterface implementation",
+                "zendframework/zend-expressive-authentication-zendauthentication": "Provides a zend-authentication AuthenticationInterface implementation"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "1.1.x-dev",
+                    "dev-develop": "1.2.x-dev"
+                },
+                "zf": {
+                    "config-provider": "Zend\\Expressive\\Authentication\\ConfigProvider"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Zend\\Expressive\\Authentication\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "BSD-3-Clause"
+            ],
+            "description": "Authentication middleware for Expressive and PSR-7 applications",
+            "keywords": [
+                "Authentication",
+                "ZendFramework",
+                "http",
+                "middleware",
+                "psr-15",
+                "psr-7",
+                "zend-expressive",
+                "zf"
+            ],
+            "time": "2019-03-05T17:50:29+00:00"
         },
         {
             "name": "zendframework/zend-expressive-fastroute",
