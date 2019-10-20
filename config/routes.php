@@ -43,22 +43,17 @@ return function (Application $app, MiddlewareFactory $factory, ContainerInterfac
     $app->get('/post', Post\Handler\PostListHandler::class, 'post.list');
     $app->get('/post/detail', Post\Handler\PostDetailHandler::class, 'post.detail');
     $app->route('/post/create', [
-        Zend\Expressive\Session\SessionMiddleware::class,
         Zend\Expressive\Authentication\AuthenticationMiddleware::class,
         Post\Handler\PostCreateHandler::class,
     ], ['GET', 'POST'], 'post.create');
     $app->route('/post/update', [
-        Zend\Expressive\Session\SessionMiddleware::class,
         Zend\Expressive\Authentication\AuthenticationMiddleware::class,
         Post\Handler\PostUpdateHandler::class
     ], ['GET', 'POST'], 'post.update');
     $app->route('/post/delete', [
-        Zend\Expressive\Session\SessionMiddleware::class,
         Zend\Expressive\Authentication\AuthenticationMiddleware::class,
         Post\Handler\PostDeleteHandler::class,
     ], ['GET', 'POST'], 'post.delete');
-    $app->route('/login', [
-        Zend\Expressive\Session\SessionMiddleware::class,
-        User\Handler\LoginHandler::class
-    ], ['GET', 'POST'], 'login');
+    $app->route('/login', User\Handler\LoginHandler::class, ['GET', 'POST'], 'login');
+    $app->route('/logout', User\Handler\LogoutHandler::class, ['GET', 'POST'], 'logout');
 };

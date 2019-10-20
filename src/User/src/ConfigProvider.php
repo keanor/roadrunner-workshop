@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace User;
 
+use User\Handler\LogoutHandler;
+use User\Middleware\AuthorizedMiddleware;
+use User\Middleware\AuthorizedMiddlewareFactory;
 use Zend\Expressive\Authentication\AuthenticationInterface;
 use Zend\Expressive\Authentication\Session\PhpSession;
 use Zend\Expressive\Authentication\UserRepository\PdoDatabase;
@@ -42,8 +45,10 @@ class ConfigProvider
                 UserRepositoryInterface::class => PdoDatabase::class
             ],
             'invokables' => [
+                LogoutHandler::class => LogoutHandler::class,
             ],
             'factories'  => [
+                AuthorizedMiddleware::class => AuthorizedMiddlewareFactory::class,
             ],
         ];
     }

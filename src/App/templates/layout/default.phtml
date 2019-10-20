@@ -37,11 +37,13 @@
                                 <i class="fa fa-thumbtack"></i> Posts
                             </a>
                         </li>
+                        <?php if ($authorized): ?>
                         <li class="nav-item">
                             <a href="<?= $this->url('post.create') ?>" class="nav-link">
                                 <i class="fa fa-plus"></i> Add New
                             </a>
                         </li>
+                        <?php endif; ?>
                         <li class="nav-item">
                             <a href="<?= $this->url('hello', [], ['target'=>'Me']) ?>" class="nav-link">
                                 <i class="fa fa-hand-paper"></i> Hello
@@ -52,6 +54,19 @@
                                 Ping Test
                             </a>
                         </li>
+                        <?php if ($authorized): ?>
+                        <li class="nav-item">
+                            <a href="/logout" class="nav-link">
+                                Logout
+                            </a>
+                        </li>
+                        <?php else: ?>
+                        <li class="nav-item">
+                            <a href="/login" class="nav-link">
+                                Login
+                            </a>
+                        </li>
+                        <?php endif; ?>
                     </ul>
                 </div>
             </div>

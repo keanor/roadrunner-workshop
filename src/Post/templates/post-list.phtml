@@ -9,15 +9,18 @@
         <?= $post->getTitle() ?>
       </a>
     </h4>
-
+    <?php if ($authorized): ?>
     <div class="btn-group" role="group" aria-label="Post actions">
       <a class="btn btn-xs btn-primary" href="<?= $this->url('post.update', [], ['id' => $post->getId()]) ?>">Edit</a>
       <a class="btn btn-xs btn-danger" href="<?= $this->url('post.delete', [], ['id' => $post->getId()]) ?>">Delete</a>
     </div>
+    <?php endif; ?>
   </div>
 <?php endforeach ?>
 </div>
 
+<?php if ($authorized): ?>
 <div class="btn-group" role="group" aria-label="Post actions">
   <a class="btn btn-primary" href="<?= $this->url('post.create') ?>">Write new post</a>
 </div>
+<?php endif; ?>
