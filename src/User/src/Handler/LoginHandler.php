@@ -89,7 +89,7 @@ class LoginHandler implements RequestHandlerInterface
         }
 
         return new HtmlResponse($this->renderer->render(
-            'app::login',
+            'user::login',
             [ 'error' => 'Ошибка авторизации, проверьте введенные данные' ]
         ));
     }

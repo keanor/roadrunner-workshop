@@ -10,4 +10,11 @@ return [
         'password' => 'example',
         'hostname' => 'db'
     ],
+    'authentication' => [
+        'pdo' => [
+            'dsn' => 'mysql:host=db;dbname=blog',
+            'username' => 'root',
+            'password' => 'example',
+        ]
+    ]
 ];

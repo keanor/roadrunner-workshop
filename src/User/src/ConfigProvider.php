@@ -67,11 +67,10 @@ class ConfigProvider
         return [
             'redirect' => '/login',
             'pdo' => [
-                'dsn' => '',
-                'table' => 'user table name',
+                'table' => 'users',
                 'field' => [
-                    'identity' => 'identity field name',
-                    'password' => 'password field name',
+                    'identity' => 'username',
+                    'password' => 'password',
                 ],
             ],
         ];
