@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace User;
 
+use Zend\Expressive\Authentication\AuthenticationInterface;
+use Zend\Expressive\Authentication\Session\PhpSession;
+use Zend\Expressive\Authentication\UserRepository\PdoDatabase;
+use Zend\Expressive\Authentication\UserRepositoryInterface;
+
 /**
  * The configuration provider for the User module
  *
@@ -22,6 +27,7 @@ class ConfigProvider
         return [
             'dependencies' => $this->getDependencies(),
             'templates'    => $this->getTemplates(),
+            'authentication' => $this->getAuthentication(),
         ];
     }
 
@@ -31,6 +37,10 @@ class ConfigProvider
     public function getDependencies() : array
     {
         return [
+            'aliases' => [
+                AuthenticationInterface::class => PhpSession::class,
+                UserRepositoryInterface::class => PdoDatabase::class
+            ],
             'invokables' => [
             ],
             'factories'  => [
@@ -46,6 +56,23 @@ class ConfigProvider
         return [
             'paths' => [
                 'user'    => [__DIR__ . '/../templates/'],
+            ],
+        ];
+    }
+
+    /**
+     * Returns the authentication configuration
+     */
+    public function getAuthentication() {
+        return [
+            'redirect' => '/login',
+            'pdo' => [
+                'dsn' => '',
+                'table' => 'user table name',
+                'field' => [
+                    'identity' => 'identity field name',
+                    'password' => 'password field name',
+                ],
             ],
         ];
     }

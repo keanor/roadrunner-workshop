@@ -18,6 +18,7 @@ return [
             Post\Handler\PostDetailHandler::class => Post\Factory\PostDetailHandlerFactory::class,
             Post\Handler\PostListHandler::class => Post\Factory\PostListHandlerFactory::class,
             Post\Handler\PostUpdateHandler::class => Post\Factory\PostUpdateHandlerFactory::class,
+            User\Handler\LoginHandler::class => User\Handler\LoginHandlerFactory::class,
         ],
     ],
 ];

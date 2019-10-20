@@ -26,7 +26,7 @@ class User implements UserInterface
      *
      * @var string
      */
-    private $title;
+    private $password;
 
     /**
      * Get the unique user identity (id, username, email address or ...)
