@@ -13,25 +13,26 @@ $cacheConfig = [
 ];
 
 $aggregator = new ConfigAggregator([
-    \Zend\Expressive\Authentication\Session\ConfigProvider::class,
-    \Zend\Expressive\Session\ConfigProvider::class,
-    \User\ConfigProvider::class,
-    \Zend\Expressive\Authentication\ConfigProvider::class,
-    \Post\ConfigProvider::class,
-    \Zend\Hydrator\ConfigProvider::class,
-    \Zend\InputFilter\ConfigProvider::class,
-    \Zend\Filter\ConfigProvider::class,
-    \Zend\Validator\ConfigProvider::class,
-    \Zend\Db\ConfigProvider::class,
-    \Zend\Expressive\Router\FastRouteRouter\ConfigProvider::class,
-    \Zend\HttpHandlerRunner\ConfigProvider::class,
-    \Zend\Expressive\Plates\ConfigProvider::class,
+    Zend\Expressive\Session\Ext\ConfigProvider::class,
+    Zend\Expressive\Authentication\Session\ConfigProvider::class,
+    Zend\Expressive\Session\ConfigProvider::class,
+    User\ConfigProvider::class,
+    Zend\Expressive\Authentication\ConfigProvider::class,
+    Post\ConfigProvider::class,
+    Zend\Hydrator\ConfigProvider::class,
+    Zend\InputFilter\ConfigProvider::class,
+    Zend\Filter\ConfigProvider::class,
+    Zend\Validator\ConfigProvider::class,
+    Zend\Db\ConfigProvider::class,
+    Zend\Expressive\Router\FastRouteRouter\ConfigProvider::class,
+    Zend\HttpHandlerRunner\ConfigProvider::class,
+    Zend\Expressive\Plates\ConfigProvider::class,
     // Include cache configuration
     new ArrayProvider($cacheConfig),
 
-    \Zend\Expressive\Helper\ConfigProvider::class,
-    \Zend\Expressive\ConfigProvider::class,
-    \Zend\Expressive\Router\ConfigProvider::class,
+    Zend\Expressive\Helper\ConfigProvider::class,
+    Zend\Expressive\ConfigProvider::class,
+    Zend\Expressive\Router\ConfigProvider::class,
 
     // Default App module config
     App\ConfigProvider::class,
