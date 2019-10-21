@@ -1,0 +1,10 @@
+<?php $this->layout('layout::default', ['title' => 'Post Detail']) ?>
+<h1>Post Detail</h1>
+
+<dl>
+    <dt>Post Title</dt>
+    <dd><?= $this->escapeHtml($post->getTitle()) ?></dd>
+
+    <dt>Post Text</dt>
+    <dd><?= $this->escapeHtml($post->getText()) ?></dd>
+</dl>

@@ -1,7 +1,9 @@
 .idea
-composer.phar
+.settings
 
 clover.xml
 coveralls-upload.json
 phpunit.xml
-vendor/
+
+application/vendor/
+server/server
