@@ -1,4 +1,4 @@
-FROM php:fpm
+FROM php:cli
 
 RUN apt-get update && apt-get install -y \
         curl libicu-dev
@@ -9,4 +9,4 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
 
 WORKDIR /var/www/blog
 
-CMD [ "php-fpm" ]
+CMD [ "/var/www/blog/rr", "serve", "-d", "-v" ]

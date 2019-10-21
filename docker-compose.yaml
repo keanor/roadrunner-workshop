@@ -1,20 +1,23 @@
 version: '3'
 
 services:
-  nginx:
-    image: nginx:1.13
-    ports:
-      - 8080:80
-    volumes:
-      - ./application:/var/www/blog
-      - ./.docker/nginx/nginx.conf:/etc/nginx/nginx.conf
-    depends_on:
-      - php
+#  nginx:
+#    image: nginx:1.13
+#    ports:
+#      - 8080:80
+#    volumes:
+#      - ./application:/var/www/blog
+#      - ./.docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+#    depends_on:
+#      - php
 
   php:
     build: .docker/php
     volumes:
-      - .:/var/www/blog
+      - ./application:/var/www/blog
+    ports:
+      - 8080:8080
+    command: "/var/www/blog/rr serve -d -v"
     depends_on:
       - db
 
