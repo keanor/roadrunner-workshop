@@ -2,6 +2,9 @@
 declare(strict_types = 1);
 namespace App;
 
+use App\Factory\RPCFactory;
+use Spiral\Goridge\RPC;
+
 /**
  * The configuration provider for the App module
  *
@@ -30,11 +33,11 @@ class ConfigProvider
     public function getDependencies(): array
     {
         return [
-            'invokables' => [
-                Handler\PingHandler::class => Handler\PingHandler::class
-            ],
             'factories' => [
-                Handler\HomePageHandler::class => Handler\HomePageHandlerFactory::class
+                RPC::class => RPCFactory::class,
+
+                Handler\HomePageHandler::class => Handler\HomePageHandlerFactory::class,
+                Handler\PingHandler::class => Handler\PingHandlerFactory::class,
             ]
         ];
     }

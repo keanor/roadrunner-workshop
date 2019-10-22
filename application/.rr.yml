@@ -4,3 +4,6 @@ http:
     command:  "php bin/worker.php"
     pool:
       numWorkers: 1
+rpc:
+  enable: true
+  listen: tcp://0.0.0.0:6001

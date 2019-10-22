@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#composer-lock-the-lock-file",
         "This file is @generated automatically"
     ],
-    "content-hash": "d8541dd9efbb2baa3c66a95b6c2ac7fd",
+    "content-hash": "3118f42f05f1999fbefa56c1e5b5d8bc",
     "packages": [
         {
             "name": "cakephp/cache",
@@ -341,6 +341,50 @@
                 "utility"
             ],
             "time": "2019-09-09T13:08:53+00:00"
+        },
+        {
+            "name": "codedungeon/php-cli-colors",
+            "version": "1.10.7",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/mikeerickson/php-cli-colors.git",
+                "reference": "5649ef76ec0c9ed626e95bf40fdfaf4b8efcf79b"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/mikeerickson/php-cli-colors/zipball/5649ef76ec0c9ed626e95bf40fdfaf4b8efcf79b",
+                "reference": "5649ef76ec0c9ed626e95bf40fdfaf4b8efcf79b",
+                "shasum": ""
+            },
+            "require-dev": {
+                "phpunit/phpunit": ">=5.2"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Codedungeon\\PHPCliColors\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Mike Erickson",
+                    "email": "codedungeon@gmail.com"
+                }
+            ],
+            "description": "PHP Package for using color output in CLI commands",
+            "homepage": "https://github.com/mikeerickson/php-cli-colors",
+            "keywords": [
+                "color",
+                "colors",
+                "composer",
+                "package",
+                "php"
+            ],
+            "time": "2018-05-17T01:34:14+00:00"
         },
         {
             "name": "container-interop/container-interop",
@@ -1224,6 +1268,47 @@
             "time": "2019-08-28T12:24:19+00:00"
         },
         {
+            "name": "spiral/dumper",
+            "version": "v1.1.6",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/spiral/dumper.git",
+                "reference": "a8f38caeb8cbecde278774775555855942c8b790"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/spiral/dumper/zipball/a8f38caeb8cbecde278774775555855942c8b790",
+                "reference": "a8f38caeb8cbecde278774775555855942c8b790",
+                "shasum": ""
+            },
+            "require": {
+                "codedungeon/php-cli-colors": "~1.0",
+                "php": "^7.1",
+                "psr/log": "^1.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "~7.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Spiral\\Debug\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Wolfy-J",
+                    "email": "wolfy.jd@gmail.com"
+                }
+            ],
+            "description": "Colorful variable dumper",
+            "time": "2019-09-25T10:42:05+00:00"
+        },
+        {
             "name": "spiral/goridge",
             "version": "v2.1.4",
             "source": {
@@ -1264,16 +1349,16 @@
         },
         {
             "name": "spiral/roadrunner",
-            "version": "v1.5.0",
+            "version": "v1.5.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/spiral/roadrunner.git",
-                "reference": "a72ccd1b6247a25c90fad317d98c884f3869b623"
+                "reference": "3e335a7c62a0f67b6290fc4982e541eeb93d483c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/spiral/roadrunner/zipball/a72ccd1b6247a25c90fad317d98c884f3869b623",
-                "reference": "a72ccd1b6247a25c90fad317d98c884f3869b623",
+                "url": "https://api.github.com/repos/spiral/roadrunner/zipball/3e335a7c62a0f67b6290fc4982e541eeb93d483c",
+                "reference": "3e335a7c62a0f67b6290fc4982e541eeb93d483c",
                 "shasum": ""
             },
             "require": {
@@ -1308,7 +1393,7 @@
                 }
             ],
             "description": "High-performance PHP application server, load-balancer and process manager written in Golang",
-            "time": "2019-10-12T10:07:47+00:00"
+            "time": "2019-10-22T15:48:38+00:00"
         },
         {
             "name": "symfony/config",

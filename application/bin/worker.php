@@ -20,12 +20,15 @@ $app = (function () {
     return $app;
 })();
 
+$dumper = new Spiral\Debug\Dumper();
+$dumper->setRenderer(Spiral\Debug\Dumper::ERROR_LOG, new Spiral\Debug\Renderer\ConsoleRenderer());
 
 while ($req = $psr7->acceptRequest()) {
     try {
         $response = $app->handle($req);
         $psr7->respond($response);
-    } catch (\Throwable $e) {
+    } catch (Throwable $e) {
+        $dumper->dump($e, Spiral\Debug\Dumper::ERROR_LOG);
         $psr7->getWorker()->error((string)$e);
     }
 }
