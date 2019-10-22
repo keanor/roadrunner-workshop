@@ -3,6 +3,7 @@ package main
 import (
     rr "github.com/spiral/roadrunner/cmd/rr/cmd"
     "github.com/spiral/roadrunner/service/headers"
+    "server/hellomiddleware"
 
     // services (plugins)
     "github.com/spiral/roadrunner/service/env"
@@ -23,6 +24,7 @@ func main() {
     rr.Container.Register(headers.ID, &headers.Service{})
     rr.Container.Register(static.ID, &static.Service{})
     rr.Container.Register(limit.ID, &limit.Service{})
+    rr.Container.Register(hellomiddleware.ID, &hellomiddleware.Service{})
 
     // you can register additional commands using cmd.CLI
     rr.Execute()
