@@ -15,24 +15,24 @@ class PostSeed extends AbstractSeed
     {
         $data = [
             [
-                'title' => 'Blog #1',
-                'text' => 'Welcome to my first blog post'
+                'title' => 'Как проводить Code Review по версии Google',
+                'text' => file_get_contents(__DIR__ . '/posts/1.html'),
             ],
             [
-                'title' => 'Blog #2',
-                'text' => 'Welcome to my second blog post'
+                'title' => 'Каково это, когда 75% ваших сотрудников — аутисты',
+                'text' => file_get_contents(__DIR__ . '/posts/2.html'),
             ],
             [
-                'title' => 'Blog #3',
-                'text' => 'Welcome to my third blog post'
+                'title' => 'IT Релокация. Из Бангкока в Сидней',
+                'text' => file_get_contents(__DIR__ . '/posts/3.html'),
             ],
             [
-                'title' => 'Blog #4',
-                'text' => 'Welcome to my fourth blog post'
+                'title' => 'Прощай HTML, привет QML',
+                'text' => file_get_contents(__DIR__ . '/posts/4.html'),
             ],
             [
-                'title' => 'Blog #5',
-                'text' => 'Welcome to my fifth blog post'
+                'title' => 'Деревья квадрантов и распознавание коллизий',
+                'text' => file_get_contents(__DIR__ . '/posts/5.html'),
             ],
         ];
 

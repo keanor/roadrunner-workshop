@@ -33,7 +33,9 @@ class PostsMigration extends AbstractMigration
     {
         $this->table('posts')
             ->addColumn('title', 'string', ['limit' => 255])
-            ->addColumn('text', 'text')
+            ->addColumn('text', 'text', [
+                'limit' => Phinx\Db\Adapter\MysqlAdapter::TEXT_MEDIUM
+            ])
             ->create();
     }
 }

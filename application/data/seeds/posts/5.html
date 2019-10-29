@@ -1,0 +1,550 @@
+<div style="text-align:center;"><img src="https://habrastorage.org/getpro/habr/post_images/59e/237/20a/59e23720a19b3109d80e62c6d2d539a0.gif" alt="image"></div><br>
+Эта неделя была короткой, в понедельник и вторник я продолжал работать над <a href="https://pvigier.github.io/2019/07/28/vagabond-2d-light-system.html">системой 2D-освещения</a>. Остальное время я потратил на реализацию деревьев квадрантов (<a href="https://en.wikipedia.org/wiki/Quadtree">quadtree</a>).<br>
+<br>
+В этой статье я поделюсь своей реализацией и мыслями, возникшими в процессе её проектирования.<br>
+<br>
+Во-первых, мне нужно сказать, почему я решил реализовать дерево квадрантов.<br>
+<br>
+Quadtree — это <a href="https://en.wikipedia.org/wiki/Space_partitioning">структура данных разбиения пространства</a>. Её новное преимущество по сравнению с другими структурами данных заключается в адаптивности. Оно обеспечивает хорошую производительность при вставке, удалении и поиске. То есть мы можем использовать это дерево в динамическом контексте, где данные часто меняются. Более того, эту структуру довольно легко понять и реализовать.<br>
+<br>
+Если разбиение пространства для вас новая тема, то рекомендую прочитать эту <a href="http://gameprogrammingpatterns.com/spatial-partition.html">статью</a> Роберта Нистрома. Если вы хотите более подробно узнать о деревьях квадрантов, то прочитайте <a href="https://gamedevelopment.tutsplus.com/tutorials/quick-tip-use-quadtrees-to-detect-likely-collisions-in-2d-space--gamedev-374">эту</a> или <a href="https://jimkang.com/quadtreevis/">эту</a> статьи.<br>
+<a name="habracut"></a><br>
+В моей игре есть области, в которых использование quadtree мгновенно оправдывает себя:<br>
+<br>
+<ul>
+    <li>При распознавании коллизий дерево квадрантов намного эффективнее, чем способ грубого перебора (brute-force) (тестирование всех пар). Но это не самый эффективный подход, обзор различных методик и бенчмарки можно изучить в <a href="https://0fps.net/2015/01/23/collision-detection-part-3-benchmarks/">этой статье</a>. Тем не менее, для первой версии своего физического движка я использую его. Возможно, позже при необходимости я выберу более специализированный алгоритм.</li>
+    <li>В <a href="https://pvigier.github.io/2019/07/14/vagabond-game-engine-foundations.html">графе сцены</a> при выполнении отсечения я могу использовать quadtree для поиска всех видимых узлов.</li>
+    <li>В <a href="https://pvigier.github.io/2019/07/28/vagabond-2d-light-system.html">системе освещения</a> можно использовать quadtree для нахождения стен, пересекающих полигон видимости источника света.</li>
+    <li>В системе ИИ можно использовать quadtree для поиска всех объектов или врагов, находящихся близко к сущности.</li>
+    <li>И так далее...</li>
+</ul><br>
+Как вы можете понять, деревья квадрантов довольно универсальны. Они будут хорошим пополнением в вашем инструментарии.<br>
+<br>
+Весь показанный в статье код можно найти на <a href="https://github.com/pvigier/Quadtree">GitHub</a>.<br>
+<br>
+<h1>Предварительная подготовка</h1><br>
+Прежде чем детализировать код quadtree, нам потребуются небольшие классы для геометрических примитивов: класс <code>Vector2</code> для задания точек и класс <code>Box</code> для задания прямоугольников. Оба будут шаблонными.<br>
+<br>
+<h2>Vector2</h2><br>
+Класс <a href="https://github.com/pvigier/Quadtree/blob/master/include/Vector2.h"><code>Vector2</code></a> минималистичен. Он содержит только конструкторы, а также операторы <code>+</code> и <code>/</code>. Это всё, что нам потребуется:<br>
+<br>
+<pre><code class="cpp hljs"><span class="hljs-keyword"><span class="hljs-keyword">template</span></span>&lt;<span class="hljs-keyword"><span class="hljs-keyword">typename</span></span> T&gt;
+<span class="hljs-class"><span class="hljs-keyword"><span class="hljs-class"><span class="hljs-keyword">class</span></span></span><span class="hljs-class"> </span><span class="hljs-title"><span class="hljs-class"><span class="hljs-title">Vector2</span></span></span><span class="hljs-class">
+{</span></span>
+<span class="hljs-keyword"><span class="hljs-keyword">public</span></span>:
+    T x;
+    T y;
+
+    <span class="hljs-keyword"><span class="hljs-keyword">constexpr</span></span> Vector2&lt;T&gt;(T X = <span class="hljs-number"><span class="hljs-number">0</span></span>, T Y = <span class="hljs-number"><span class="hljs-number">0</span></span>) <span class="hljs-keyword"><span class="hljs-keyword">noexcept</span></span> : x(X), y(Y)
+    {
+
+    }
+
+    <span class="hljs-keyword"><span class="hljs-keyword">constexpr</span></span> Vector2&lt;T&gt;&amp; <span class="hljs-keyword"><span class="hljs-keyword">operator</span></span>+=(<span class="hljs-keyword"><span class="hljs-keyword">const</span></span> Vector2&lt;T&gt;&amp; other) <span class="hljs-keyword"><span class="hljs-keyword">noexcept</span></span>
+    {
+        x += other.x;
+        y += other.y;
+        <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> *<span class="hljs-keyword"><span class="hljs-keyword">this</span></span>;
+    }
+
+    <span class="hljs-keyword"><span class="hljs-keyword">constexpr</span></span> Vector2&lt;T&gt;&amp; <span class="hljs-keyword"><span class="hljs-keyword">operator</span></span>/=(T t) <span class="hljs-keyword"><span class="hljs-keyword">noexcept</span></span>
+    {
+        x /= t;
+        y /= t;
+        <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> *<span class="hljs-keyword"><span class="hljs-keyword">this</span></span>;
+    }
+};
+
+<span class="hljs-keyword"><span class="hljs-keyword">template</span></span>&lt;<span class="hljs-keyword"><span class="hljs-keyword">typename</span></span> T&gt;
+<span class="hljs-keyword"><span class="hljs-keyword">constexpr</span></span> Vector2&lt;T&gt; <span class="hljs-keyword"><span class="hljs-keyword">operator</span></span>+(Vector2&lt;T&gt; lhs, <span class="hljs-keyword"><span class="hljs-keyword">const</span></span> Vector2&lt;T&gt;&amp; rhs) <span class="hljs-keyword"><span class="hljs-keyword">noexcept</span></span>
+{
+    lhs += rhs;
+    <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> lhs;
+}
+
+<span class="hljs-keyword"><span class="hljs-keyword">template</span></span>&lt;<span class="hljs-keyword"><span class="hljs-keyword">typename</span></span> T&gt;
+<span class="hljs-keyword"><span class="hljs-keyword">constexpr</span></span> Vector2&lt;T&gt; <span class="hljs-keyword"><span class="hljs-keyword">operator</span></span>/(Vector2&lt;T&gt; vec, T t) <span class="hljs-keyword"><span class="hljs-keyword">noexcept</span></span>
+{
+    vec /= t;
+    <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> vec;
+}</code></pre><br>
+<h2>Box</h2><br>
+Класс <a href="https://github.com/pvigier/Quadtree/blob/master/include/Box.h"><code>Box</code></a> ненамного сложнее:<br>
+<br>
+<pre><code class="cpp hljs"><span class="hljs-keyword"><span class="hljs-keyword">template</span></span>&lt;<span class="hljs-keyword"><span class="hljs-keyword">typename</span></span> T&gt;
+<span class="hljs-class"><span class="hljs-keyword"><span class="hljs-class"><span class="hljs-keyword">class</span></span></span><span class="hljs-class"> </span><span class="hljs-title"><span class="hljs-class"><span class="hljs-title">Box</span></span></span><span class="hljs-class">
+{</span></span>
+<span class="hljs-keyword"><span class="hljs-keyword">public</span></span>:
+    T left;
+    T top;
+    T width; <span class="hljs-comment"><span class="hljs-comment">// Must be positive</span></span>
+    T height; <span class="hljs-comment"><span class="hljs-comment">// Must be positive</span></span>
+
+    <span class="hljs-function"><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">constexpr</span></span></span><span class="hljs-function"> </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">Box</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">(T Left = </span></span><span class="hljs-number"><span class="hljs-function"><span class="hljs-params"><span class="hljs-number">0</span></span></span></span><span class="hljs-function"><span class="hljs-params">, T Top = </span></span><span class="hljs-number"><span class="hljs-function"><span class="hljs-params"><span class="hljs-number">0</span></span></span></span><span class="hljs-function"><span class="hljs-params">, T Width = </span></span><span class="hljs-number"><span class="hljs-function"><span class="hljs-params"><span class="hljs-number">0</span></span></span></span><span class="hljs-function"><span class="hljs-params">, T Height = </span></span><span class="hljs-number"><span class="hljs-function"><span class="hljs-params"><span class="hljs-number">0</span></span></span></span><span class="hljs-function"><span class="hljs-params">)</span></span></span><span class="hljs-function"> </span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">noexcept</span></span></span><span class="hljs-function"> :
+        </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">left</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">(Left)</span></span></span><span class="hljs-function">, </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">top</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">(Top)</span></span></span><span class="hljs-function">, </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">width</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">(Width)</span></span></span><span class="hljs-function">, </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">height</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">(Height)</span></span></span><span class="hljs-function">
+    </span></span>{
+
+    }
+
+    <span class="hljs-function"><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">constexpr</span></span></span><span class="hljs-function"> </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">Box</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">(</span></span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-params"><span class="hljs-keyword">const</span></span></span></span><span class="hljs-function"><span class="hljs-params"> Vector2&lt;T&gt;&amp; position, </span></span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-params"><span class="hljs-keyword">const</span></span></span></span><span class="hljs-function"><span class="hljs-params"> Vector2&lt;T&gt;&amp; size)</span></span></span><span class="hljs-function"> </span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">noexcept</span></span></span><span class="hljs-function"> :
+        </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">left</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">(position.x)</span></span></span><span class="hljs-function">, </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">top</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">(position.y)</span></span></span><span class="hljs-function">, </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">width</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">(size.x)</span></span></span><span class="hljs-function">, </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">height</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">(size.y)</span></span></span><span class="hljs-function">
+    </span></span>{
+
+    }
+
+    <span class="hljs-function"><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">constexpr</span></span></span><span class="hljs-function"> T </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">getRight</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">()</span></span></span><span class="hljs-function"> </span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">const</span></span></span><span class="hljs-function"> </span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">noexcept</span></span></span><span class="hljs-function">
+    </span></span>{
+        <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> left + width;
+    }
+
+    <span class="hljs-function"><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">constexpr</span></span></span><span class="hljs-function"> T </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">getBottom</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">()</span></span></span><span class="hljs-function"> </span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">const</span></span></span><span class="hljs-function"> </span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">noexcept</span></span></span><span class="hljs-function">
+    </span></span>{
+        <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> top + height;
+    }
+
+    <span class="hljs-keyword"><span class="hljs-keyword">constexpr</span></span> Vector2&lt;T&gt; getTopLeft() <span class="hljs-keyword"><span class="hljs-keyword">const</span></span> <span class="hljs-keyword"><span class="hljs-keyword">noexcept</span></span>
+    {
+        <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> Vector2&lt;T&gt;(left, top);
+    }
+
+    <span class="hljs-keyword"><span class="hljs-keyword">constexpr</span></span> Vector2&lt;T&gt; getCenter() <span class="hljs-keyword"><span class="hljs-keyword">const</span></span> <span class="hljs-keyword"><span class="hljs-keyword">noexcept</span></span>
+    {
+        <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> Vector2&lt;T&gt;(left + width / <span class="hljs-number"><span class="hljs-number">2</span></span>, top + height / <span class="hljs-number"><span class="hljs-number">2</span></span>);
+    }
+
+    <span class="hljs-keyword"><span class="hljs-keyword">constexpr</span></span> Vector2&lt;T&gt; getSize() <span class="hljs-keyword"><span class="hljs-keyword">const</span></span> <span class="hljs-keyword"><span class="hljs-keyword">noexcept</span></span>
+    {
+        <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> Vector2&lt;T&gt;(width, height);
+    }
+
+    <span class="hljs-function"><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">constexpr</span></span></span><span class="hljs-function"> </span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">bool</span></span></span><span class="hljs-function"> </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">contains</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">(</span></span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-params"><span class="hljs-keyword">const</span></span></span></span><span class="hljs-function"><span class="hljs-params"> Box&lt;T&gt;&amp; box)</span></span></span><span class="hljs-function"> </span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">const</span></span></span><span class="hljs-function"> </span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">noexcept</span></span></span><span class="hljs-function">
+    </span></span>{
+        <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> left &lt;= box.left &amp;&amp; box.getRight() &lt;= getRight() &amp;&amp;
+            top &lt;= box.top &amp;&amp; box.getBottom() &lt;= getBottom();
+    }
+
+    <span class="hljs-function"><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">constexpr</span></span></span><span class="hljs-function"> </span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">bool</span></span></span><span class="hljs-function"> </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">intersects</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">(</span></span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-params"><span class="hljs-keyword">const</span></span></span></span><span class="hljs-function"><span class="hljs-params"> Box&lt;T&gt;&amp; box)</span></span></span><span class="hljs-function"> </span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">const</span></span></span><span class="hljs-function"> </span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">noexcept</span></span></span><span class="hljs-function">
+    </span></span>{
+        <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> !(left &gt;= box.getRight() || getRight() &lt;= box.left ||
+            top &gt;= box.getBottom() || getBottom() &lt;= box.top);
+    }
+};</code></pre><br>
+Он содержит несколько полезных геттеров.<br>
+<br>
+Интереснее то, что он содержит метод <code>contains</code>, проверяющий, находится ли прямоугольник внутри другого, и метод <code>intersects</code>, проверяющий, пересекается ли прямоугольник с другим.<br>
+<br>
+Мы будем использовать <code>contains</code> при вставке и удалении, а <code>intersects</code> — при распознавании пересечений.<br>
+<br>
+<h1>Quadtree</h1><br>
+Вот скелет класса <a href="https://github.com/pvigier/Quadtree/blob/master/include/Quadtree.h"><code>Quadtree</code></a>:<br>
+<br>
+<pre><code class="cpp hljs"><span class="hljs-keyword"><span class="hljs-keyword">template</span></span>&lt;<span class="hljs-keyword"><span class="hljs-keyword">typename</span></span> T, <span class="hljs-keyword"><span class="hljs-keyword">typename</span></span> GetBox, <span class="hljs-keyword"><span class="hljs-keyword">typename</span></span> Equal = <span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::equal_to&lt;T&gt;, <span class="hljs-keyword"><span class="hljs-keyword">typename</span></span> Float = <span class="hljs-keyword"><span class="hljs-keyword">float</span></span>&gt;
+class Quadtree
+{
+    <span class="hljs-keyword"><span class="hljs-keyword">static_assert</span></span>(<span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::is_convertible_v&lt;<span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::<span class="hljs-keyword"><span class="hljs-keyword">invoke_result_t</span></span>&lt;GetBox, <span class="hljs-keyword"><span class="hljs-keyword">const</span></span> T&amp;&gt;, Box&lt;Float&gt;&gt;,
+        <span class="hljs-string"><span class="hljs-string">"GetBox must be a callable of signature Box&lt;Float&gt;(const T&amp;)"</span></span>);
+    <span class="hljs-keyword"><span class="hljs-keyword">static_assert</span></span>(<span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::is_convertible_v&lt;<span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::<span class="hljs-keyword"><span class="hljs-keyword">invoke_result_t</span></span>&lt;Equal, <span class="hljs-keyword"><span class="hljs-keyword">const</span></span> T&amp;, <span class="hljs-keyword"><span class="hljs-keyword">const</span></span> T&amp;&gt;, <span class="hljs-keyword"><span class="hljs-keyword">bool</span></span>&gt;,
+        <span class="hljs-string"><span class="hljs-string">"Equal must be a callable of signature bool(const T&amp;, const T&amp;)"</span></span>);
+    <span class="hljs-keyword"><span class="hljs-keyword">static_assert</span></span>(<span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::is_arithmetic_v&lt;Float&gt;);
+
+<span class="hljs-keyword"><span class="hljs-keyword">public</span></span>:
+    Quadtree(<span class="hljs-keyword"><span class="hljs-keyword">const</span></span> Box&lt;Float&gt;&amp; box, <span class="hljs-keyword"><span class="hljs-keyword">const</span></span> GetBox&amp; getBox = GetBox(),
+        <span class="hljs-keyword"><span class="hljs-keyword">const</span></span> Equal&amp; equal = Equal()) :
+        mBox(box), mRoot(<span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::make_unique&lt;Node&gt;()), mGetBox(getBox), mEqual(equal)
+    {
+
+    }
+
+<span class="hljs-keyword"><span class="hljs-keyword">private</span></span>:
+    <span class="hljs-keyword"><span class="hljs-keyword">static</span></span> <span class="hljs-keyword"><span class="hljs-keyword">constexpr</span></span> <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span> Threshold = <span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::<span class="hljs-keyword"><span class="hljs-keyword">size_t</span></span>(<span class="hljs-number"><span class="hljs-number">16</span></span>);
+    <span class="hljs-keyword"><span class="hljs-keyword">static</span></span> <span class="hljs-keyword"><span class="hljs-keyword">constexpr</span></span> <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span> MaxDepth = <span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::<span class="hljs-keyword"><span class="hljs-keyword">size_t</span></span>(<span class="hljs-number"><span class="hljs-number">8</span></span>);
+
+    <span class="hljs-class"><span class="hljs-keyword"><span class="hljs-class"><span class="hljs-keyword">struct</span></span></span><span class="hljs-class"> </span><span class="hljs-title"><span class="hljs-class"><span class="hljs-title">Node</span></span></span><span class="hljs-class">
+    {</span></span>
+        <span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::<span class="hljs-built_in"><span class="hljs-built_in">array</span></span>&lt;<span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::<span class="hljs-built_in"><span class="hljs-built_in">unique_ptr</span></span>&lt;Node&gt;, <span class="hljs-number"><span class="hljs-number">4</span></span>&gt; children;
+        <span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::<span class="hljs-built_in"><span class="hljs-built_in">vector</span></span>&lt;T&gt; values;
+    };
+
+    Box&lt;Float&gt; mBox;
+    <span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::<span class="hljs-built_in"><span class="hljs-built_in">unique_ptr</span></span>&lt;Node&gt; mRoot;
+    GetBox mGetBox;
+    Equal mEqual;
+
+    <span class="hljs-function"><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">bool</span></span></span><span class="hljs-function"> </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">isLeaf</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">(</span></span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-params"><span class="hljs-keyword">const</span></span></span></span><span class="hljs-function"><span class="hljs-params"> Node* node)</span></span></span><span class="hljs-function"> </span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">const</span></span></span><span class="hljs-function">
+    </span></span>{
+        <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> !<span class="hljs-keyword"><span class="hljs-keyword">static_cast</span></span>&lt;<span class="hljs-keyword"><span class="hljs-keyword">bool</span></span>&gt;(node-&gt;children[<span class="hljs-number"><span class="hljs-number">0</span></span>]);
+    }
+};</code></pre><br>
+Как можно заметить, <code>Quadtree</code> — это класс-шаблон. Это позволит нам использовать класс для различных целей, о которых я говорил в начале.<br>
+<br>
+Параметры шаблона:<br>
+<br>
+<ul>
+    <li><code>T</code>: тип значений, которые будут содержаться в quadtree. <code>T</code> должен быть лёгким классом, потому что он будет хранится внутри quadtree. В идеале это должен быть указатель или небольшая простая структура данных (POD).</li>
+    <li><code>GetBox</code>: тип вызываемого объекта, который будет получать значение на входе и возвращать прямоугольник.</li>
+    <li><code>Equal</code>: тип вызываемого объекта для проверки равенства двух значений. По умолчанию мы используем стандартный оператор равенства.</li>
+    <li><code>Float</code>: арифметический тип, используемый в вычислениях. По умолчанию мы используем <code>float</code>.</li>
+</ul><br>
+В начале определения класса есть три статических допущения (assertion) для проверки правильности параметров шаблона.<br>
+<br>
+Давайте взглянем на определение узла. Узел просто хранит указатели на свои четыре дочерних узла и список содержащихся в нём значений. Мы не храним в нём его ограничивающий прямоугольник или глубину, они будут вычисляться на лету.<br>
+<br>
+Я провёл бенчмарки обоих подходов (с сохранением прямоугольника с глубиной и без сохранения) и не обнаружил снижения производительности при вычислении их на лету. Более того, так экономится немного памяти.<br>
+<br>
+Чтобы иметь возможность отличать внутренний узел от листа, существует метод <code>isLeaf</code>. Он просто проверяет, что первый дочерний элемент не равен null. Так как null являются или все дочерние узлы, или ни один из них, достаточно проверять только первый.<br>
+<br>
+Теперь мы можем рассмотреть переменные-члены <code>Quadtree</code>:<br>
+<br>
+<ul>
+    <li><code>mBox</code> — это глобальный ограничивающий прямоугольник. Все вставляемые в quadtree значения должны содержаться внутри него.</li>
+    <li><code>mRoot</code> — корень quadtree.</li>
+    <li><code>mGetBox</code> — вызываемый объект, который мы будем использовать для получения прямоугольника из значения.</li>
+    <li><code>mEqual</code> — вызываемый объект, который мы будем использовать для проверки равенства двух значений.</li>
+</ul><br>
+Конструктор просто задаёт <code>mBox</code>, <code>mGetBox</code> и <code>mEqual</code>, а также создаёт корневой узел.<br>
+<br>
+Последние два параметра, о которых мы ещё не говорили — это <code>Threshold</code> и <code>MaxDepth</code>. <code>Threshold</code> — максимальное количество значений, которое может содержать узел, прежде чем мы его разделим. <code>MaxDepth</code> — это максимальная глубина узла, мы прекращаем пытаться разделить узлы, которые находятся на <code>MaxDepth</code>, потому что если разделять слишком много, это может помешать производительности. Я задал этим константам разумные значения, подходящие для большинства случаев. Можете попробовать оптимизировать их под свою конфигурацию.<br>
+<br>
+Теперь мы готовы приступить к более интересным операциям.<br>
+<br>
+<h1>Вставка и удаление</h1><br>
+Прежде чем я покажу код вставки, нам нужно обсудить то, какие узлы будут содержать значения. Существует две стратегии:<br>
+<br>
+<ul>
+    <li>Значения хранятся только в листьях. Так как ограничивающий прямоугольник значения может взаимодействовать с несколькими листьями, значение будет храниться во всех этих листьях.</li>
+    <li>Значения могут храниться во всех узлах. Мы сохраняем значение в наименьший узел, который полностью содержит его ограничивающий прямоугольник.</li>
+</ul><br>
+Если ограничивающие прямоугольники малы и имеют примерно одинаковый размер, то при поиске пересечений более эффективна первая стратегия. Однако, если существуют большие прямоугольники, могут возникать вырожденные случаи, при которых производительность будет очень плохой. Например, если мы вставим значение, прямоугольник которого находится в глобальном ограничивающем прямоугольнике, то оно будет добавлено во все листья. А если мы вставим <code>Threshold</code> для таких значений, то все узлы будут разделяться, пока не достигнут <code>MaxDepth</code> и значения не окажутся во всех листьях. Следовательно, quadtree будет содержать <math></math><span class="MathJax_Preview" style="color: inherit; display: none;"></span><span style="font-size: 100%; display: inline-block; position: relative;" class="MathJax_SVG" id="MathJax-Element-1-Frame" tabindex="0" data-mathml="<math xmlns=&quot;http://www.w3.org/1998/Math/MathML&quot;><mrow class=&quot;MJX-TeXAtom-ORD&quot;><mtext mathvariant=&quot;monospace&quot;>Threshold</mtext></mrow><mo>&amp;#x00D7;</mo><msup><mn>4</mn><mrow class=&quot;MJX-TeXAtom-ORD&quot;><mrow class=&quot;MJX-TeXAtom-ORD&quot;><mtext mathvariant=&quot;monospace&quot;>MaxDepth</mtext></mrow></mrow></msup></math>" role="presentation"><svg xmlns:xlink="http://www.w3.org/1999/xlink" width="22.124ex" height="2.386ex" style="vertical-align: -0.242ex;" viewBox="0 -922.8 9525.6 1027.1" role="img" focusable="false" aria-hidden="true"><g stroke="currentColor" fill="currentColor" stroke-width="0" transform="matrix(1 0 0 -1 0 0)"><use xlink:href="#MJTT-54"></use><use xlink:href="#MJTT-68" x="525" y="0"></use><use xlink:href="#MJTT-72" x="1051" y="0"></use><use xlink:href="#MJTT-65" x="1576" y="0"></use><use xlink:href="#MJTT-73" x="2102" y="0"></use><use xlink:href="#MJTT-68" x="2627" y="0"></use><use xlink:href="#MJTT-6F" x="3153" y="0"></use><use xlink:href="#MJTT-6C" x="3678" y="0"></use><use xlink:href="#MJTT-64" x="4204" y="0"></use><use xlink:href="#MJMAIN-D7" x="4951" y="0"></use><g transform="translate(5952,0)"><use xlink:href="#MJMAIN-34" x="0" y="0"></use><g transform="translate(500,404)"><use transform="scale(0.707)" xlink:href="#MJTT-4D"></use><use transform="scale(0.707)" xlink:href="#MJTT-61" x="525" y="0"></use><use transform="scale(0.707)" xlink:href="#MJTT-78" x="1051" y="0"></use><use transform="scale(0.707)" xlink:href="#MJTT-44" x="1576" y="0"></use><use transform="scale(0.707)" xlink:href="#MJTT-65" x="2102" y="0"></use><use transform="scale(0.707)" xlink:href="#MJTT-70" x="2627" y="0"></use><use transform="scale(0.707)" xlink:href="#MJTT-74" x="3153" y="0"></use><use transform="scale(0.707)" xlink:href="#MJTT-68" x="3678" y="0"></use></g></g></g></svg><span class="MJX_Assistive_MathML" role="presentation"><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow class="MJX-TeXAtom-ORD"><mtext mathvariant="monospace">Threshold</mtext></mrow><mo>×</mo><msup><mn>4</mn><mrow class="MJX-TeXAtom-ORD"><mrow class="MJX-TeXAtom-ORD"><mtext mathvariant="monospace">MaxDepth</mtext></mrow></mrow></msup></math></span></span><script type="math/tex" id="MathJax-Element-1">\texttt{Threshold} \times 4^{\texttt{MaxDepth}}</script> значений, а это… много.<br>
+<br>
+Более того, при первой стратегии вставка и удаление будут немного медленнее, потому что нам придётся вставлять (или удалять) все узлы, пересекающие значение.<br>
+<br>
+Поэтому я буду использовать вторую стратегию, в которой не бывает вырожденных случаев. Так как я планирую применять quadtree в различных контекстах, это будет удобнее. Кроме того, такая стратегия больше подходит для динамических контекстов, в которых для обновления значений выполняется множество вставок и удалений, например, в физическом движке, где сущности перемещаются.<br>
+<br>
+Чтобы узнать, в какой узел мы будем вставлять или удалять значение, воспользуемся двумя вспомогательными функциями.<br>
+<br>
+Первая, <code>computeBox</code>, вычисляет прямоугольник дочернего узла по прямоугольнику родительского узла и индекс его квадранта.<br>
+<br>
+<pre><code class="cpp hljs">Box&lt;Float&gt; computeBox(<span class="hljs-keyword"><span class="hljs-keyword">const</span></span> Box&lt;Float&gt;&amp; box, <span class="hljs-keyword"><span class="hljs-keyword">int</span></span> i) <span class="hljs-keyword"><span class="hljs-keyword">const</span></span>
+{
+    <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span> origin = box.getTopLeft();
+    <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span> childSize = box.getSize() / <span class="hljs-keyword"><span class="hljs-keyword">static_cast</span></span>&lt;Float&gt;(<span class="hljs-number"><span class="hljs-number">2</span></span>);
+    <span class="hljs-keyword"><span class="hljs-keyword">switch</span></span> (i)
+    {
+        <span class="hljs-comment"><span class="hljs-comment">// North West</span></span>
+        <span class="hljs-keyword"><span class="hljs-keyword">case</span></span> <span class="hljs-number"><span class="hljs-number">0</span></span>:
+            <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> Box&lt;Float&gt;(origin, childSize);
+        <span class="hljs-comment"><span class="hljs-comment">// Norst East</span></span>
+        <span class="hljs-keyword"><span class="hljs-keyword">case</span></span> <span class="hljs-number"><span class="hljs-number">1</span></span>:
+            <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> Box&lt;Float&gt;(Vector2&lt;Float&gt;(origin.x + childSize.x, origin.y), childSize);
+        <span class="hljs-comment"><span class="hljs-comment">// South West</span></span>
+        <span class="hljs-keyword"><span class="hljs-keyword">case</span></span> <span class="hljs-number"><span class="hljs-number">2</span></span>:
+            <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> Box&lt;Float&gt;(Vector2&lt;Float&gt;(origin.x, origin.y + childSize.y), childSize);
+        <span class="hljs-comment"><span class="hljs-comment">// South East</span></span>
+        <span class="hljs-keyword"><span class="hljs-keyword">case</span></span> <span class="hljs-number"><span class="hljs-number">3</span></span>:
+            <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> Box&lt;Float&gt;(origin + childSize, childSize);
+        <span class="hljs-keyword"><span class="hljs-keyword">default</span></span>:
+            assert(<span class="hljs-literal"><span class="hljs-literal">false</span></span> &amp;&amp; <span class="hljs-string"><span class="hljs-string">"Invalid child index"</span></span>);
+            <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> Box&lt;Float&gt;();
+    }
+}</code></pre><br>
+Вторая, <code>getQuadrant</code>, возвращает квадрант, в котором находится значение:<br>
+<br>
+<pre><code class="cpp hljs"><span class="hljs-function"><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">int</span></span></span><span class="hljs-function"> </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">getQuadrant</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">(</span></span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-params"><span class="hljs-keyword">const</span></span></span></span><span class="hljs-function"><span class="hljs-params"> Box&lt;Float&gt;&amp; nodeBox, </span></span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-params"><span class="hljs-keyword">const</span></span></span></span><span class="hljs-function"><span class="hljs-params"> Box&lt;Float&gt;&amp; valueBox)</span></span></span><span class="hljs-function"> </span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">const</span></span></span><span class="hljs-function">
+</span></span>{
+    <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span> center = nodeBox.getCenter();
+    <span class="hljs-comment"><span class="hljs-comment">// West</span></span>
+    <span class="hljs-keyword"><span class="hljs-keyword">if</span></span> (valueBox.getRight() &lt; center.x)
+    {
+        <span class="hljs-comment"><span class="hljs-comment">// North West</span></span>
+        <span class="hljs-keyword"><span class="hljs-keyword">if</span></span> (valueBox.getBottom() &lt; center.y)
+            <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> <span class="hljs-number"><span class="hljs-number">0</span></span>;
+        <span class="hljs-comment"><span class="hljs-comment">// South West</span></span>
+        <span class="hljs-keyword"><span class="hljs-keyword">else</span></span> <span class="hljs-keyword"><span class="hljs-keyword">if</span></span> (valueBox.top &gt;= center.y)
+            <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> <span class="hljs-number"><span class="hljs-number">2</span></span>;
+        <span class="hljs-comment"><span class="hljs-comment">// Not contained in any quadrant</span></span>
+        <span class="hljs-keyword"><span class="hljs-keyword">else</span></span>
+            <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> <span class="hljs-number"><span class="hljs-number">-1</span></span>;
+    }
+    <span class="hljs-comment"><span class="hljs-comment">// East</span></span>
+    <span class="hljs-keyword"><span class="hljs-keyword">else</span></span> <span class="hljs-keyword"><span class="hljs-keyword">if</span></span> (valueBox.left &gt;= center.x)
+    {
+        <span class="hljs-comment"><span class="hljs-comment">// North East</span></span>
+        <span class="hljs-keyword"><span class="hljs-keyword">if</span></span> (valueBox.getBottom() &lt; center.y)
+            <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> <span class="hljs-number"><span class="hljs-number">1</span></span>;
+        <span class="hljs-comment"><span class="hljs-comment">// South East</span></span>
+        <span class="hljs-keyword"><span class="hljs-keyword">else</span></span> <span class="hljs-keyword"><span class="hljs-keyword">if</span></span> (valueBox.top &gt;= center.y)
+            <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> <span class="hljs-number"><span class="hljs-number">3</span></span>;
+        <span class="hljs-comment"><span class="hljs-comment">// Not contained in any quadrant</span></span>
+        <span class="hljs-keyword"><span class="hljs-keyword">else</span></span>
+            <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> <span class="hljs-number"><span class="hljs-number">-1</span></span>;
+    }
+    <span class="hljs-comment"><span class="hljs-comment">// Not contained in any quadrant</span></span>
+    <span class="hljs-keyword"><span class="hljs-keyword">else</span></span>
+        <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> <span class="hljs-number"><span class="hljs-number">-1</span></span>;
+}</code></pre><br>
+Она возвращает <code>-1</code>, если оно не содержится ни в одном из квадрантов.<br>
+<br>
+Теперь мы готовы рассмотреть методы вставки и удаления.<br>
+<br>
+<h2>Вставка</h2><br>
+Метод <code>add</code> просто вызывает приватный вспомогательный метод:<br>
+<br>
+<pre><code class="cpp hljs"><span class="hljs-function"><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">void</span></span></span><span class="hljs-function"> </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">add</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">(</span></span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-params"><span class="hljs-keyword">const</span></span></span></span><span class="hljs-function"><span class="hljs-params"> T&amp; value)</span></span></span><span class="hljs-function">
+</span></span>{
+    add(mRoot.get(), <span class="hljs-number"><span class="hljs-number">0</span></span>, mBox, value);
+}</code></pre><br>
+Вот код вспомогательного метода:<br>
+<br>
+<pre><code class="cpp hljs"><span class="hljs-function"><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">void</span></span></span><span class="hljs-function"> </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">add</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">(Node* node, </span></span><span class="hljs-built_in"><span class="hljs-function"><span class="hljs-params"><span class="hljs-built_in">std</span></span></span></span><span class="hljs-function"><span class="hljs-params">::</span></span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-params"><span class="hljs-keyword">size_t</span></span></span></span><span class="hljs-function"><span class="hljs-params"> depth, </span></span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-params"><span class="hljs-keyword">const</span></span></span></span><span class="hljs-function"><span class="hljs-params"> Box&lt;Float&gt;&amp; box, </span></span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-params"><span class="hljs-keyword">const</span></span></span></span><span class="hljs-function"><span class="hljs-params"> T&amp; value)</span></span></span><span class="hljs-function">
+</span></span>{
+    assert(node != <span class="hljs-literal"><span class="hljs-literal">nullptr</span></span>);
+    assert(box.contains(mGetBox(value)));
+    <span class="hljs-keyword"><span class="hljs-keyword">if</span></span> (isLeaf(node))
+    {
+        <span class="hljs-comment"><span class="hljs-comment">// Insert the value in this node if possible</span></span>
+        <span class="hljs-keyword"><span class="hljs-keyword">if</span></span> (depth &gt;= MaxDepth || node-&gt;values.size() &lt; Threshold)
+            node-&gt;values.push_back(value);
+        <span class="hljs-comment"><span class="hljs-comment">// Otherwise, we split and we try again</span></span>
+        <span class="hljs-keyword"><span class="hljs-keyword">else</span></span>
+        {
+            split(node, box);
+            add(node, depth, box, value);
+        }
+    }
+    <span class="hljs-keyword"><span class="hljs-keyword">else</span></span>
+    {
+        <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span> i = getQuadrant(box, mGetBox(value));
+        <span class="hljs-comment"><span class="hljs-comment">// Add the value in a child if the value is entirely contained in it</span></span>
+        <span class="hljs-keyword"><span class="hljs-keyword">if</span></span> (i != <span class="hljs-number"><span class="hljs-number">-1</span></span>)
+            add(node-&gt;children[<span class="hljs-keyword"><span class="hljs-keyword">static_cast</span></span>&lt;<span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::<span class="hljs-keyword"><span class="hljs-keyword">size_t</span></span>&gt;(i)].get(), depth + <span class="hljs-number"><span class="hljs-number">1</span></span>, computeBox(box, i), value);
+        <span class="hljs-comment"><span class="hljs-comment">// Otherwise, we add the value in the current node</span></span>
+        <span class="hljs-keyword"><span class="hljs-keyword">else</span></span>
+            node-&gt;values.push_back(value);
+    }
+}</code></pre><br>
+В начале расположена пара допущений, проверяющих, что мы не делаем ничего нелогичного, например, не вставляем значение в узел, не содержащий его ограничивающий прямоугольник.<br>
+<br>
+Затем, если узел является листом, и мы можем вставить в него новое значение, т.е. мы не достигли <code>MaxDepth</code> или <code>Threshold</code>, выполняем вставку. В противном случае мы разделяем этот узел и пробуем снова.<br>
+<br>
+Если узел внутренний, то вычисляем квадрант, в котором содержится ограничивающий прямоугольник значения. Если он полностью содержится в дочернем узле, выполняем рекурсивный вызов. В противном случае, выполняем вставку в этот узел.<br>
+<br>
+Вот процедура разделения:<br>
+<br>
+<pre><code class="cpp hljs"><span class="hljs-function"><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">void</span></span></span><span class="hljs-function"> </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">split</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">(Node* node, </span></span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-params"><span class="hljs-keyword">const</span></span></span></span><span class="hljs-function"><span class="hljs-params"> Box&lt;Float&gt;&amp; box)</span></span></span><span class="hljs-function">
+</span></span>{
+    assert(node != <span class="hljs-literal"><span class="hljs-literal">nullptr</span></span>);
+    assert(isLeaf(node) &amp;&amp; <span class="hljs-string"><span class="hljs-string">"Only leaves can be split"</span></span>);
+    <span class="hljs-comment"><span class="hljs-comment">// Create children</span></span>
+    <span class="hljs-keyword"><span class="hljs-keyword">for</span></span> (<span class="hljs-keyword"><span class="hljs-keyword">auto</span></span>&amp; child : node-&gt;children)
+        child = <span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::make_unique&lt;Node&gt;();
+    <span class="hljs-comment"><span class="hljs-comment">// Assign values to children</span></span>
+    <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span> newValues = <span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::<span class="hljs-built_in"><span class="hljs-built_in">vector</span></span>&lt;T&gt;(); <span class="hljs-comment"><span class="hljs-comment">// New values for this node</span></span>
+    <span class="hljs-keyword"><span class="hljs-keyword">for</span></span> (<span class="hljs-keyword"><span class="hljs-keyword">const</span></span> <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span>&amp; value : node-&gt;values)
+    {
+        <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span> i = getQuadrant(box, mGetBox(value));
+        <span class="hljs-keyword"><span class="hljs-keyword">if</span></span> (i != <span class="hljs-number"><span class="hljs-number">-1</span></span>)
+            node-&gt;children[<span class="hljs-keyword"><span class="hljs-keyword">static_cast</span></span>&lt;<span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::<span class="hljs-keyword"><span class="hljs-keyword">size_t</span></span>&gt;(i)]-&gt;values.push_back(value);
+        <span class="hljs-keyword"><span class="hljs-keyword">else</span></span>
+            newValues.push_back(value);
+    }
+    node-&gt;values = <span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::move(newValues);
+}</code></pre><br>
+Мы создаём четыре дочерних узла, а затем для каждого значения родительского узла решаем, в каком узле (дочернем или родительском) должно храниться значение.<br>
+<br>
+<h2>Удаление</h2><br>
+Метод <code>remove</code> тоже просто вызывает вспомогательный метод:<br>
+<br>
+<pre><code class="cpp hljs"><span class="hljs-function"><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">void</span></span></span><span class="hljs-function"> </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">remove</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">(</span></span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-params"><span class="hljs-keyword">const</span></span></span></span><span class="hljs-function"><span class="hljs-params"> T&amp; value)</span></span></span><span class="hljs-function">
+</span></span>{
+    remove(mRoot.get(), <span class="hljs-literal"><span class="hljs-literal">nullptr</span></span>, mBox, value);
+}</code></pre><br>
+Вот код вспомогательного метода, он очень похож на код вставки:<br>
+<br>
+<pre><code class="cpp hljs"><span class="hljs-function"><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">void</span></span></span><span class="hljs-function"> </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">remove</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">(Node* node, Node* parent, </span></span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-params"><span class="hljs-keyword">const</span></span></span></span><span class="hljs-function"><span class="hljs-params"> Box&lt;Float&gt;&amp; box, </span></span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-params"><span class="hljs-keyword">const</span></span></span></span><span class="hljs-function"><span class="hljs-params"> T&amp; value)</span></span></span><span class="hljs-function">
+</span></span>{
+    assert(node != <span class="hljs-literal"><span class="hljs-literal">nullptr</span></span>);
+    assert(box.contains(mGetBox(value)));
+    <span class="hljs-keyword"><span class="hljs-keyword">if</span></span> (isLeaf(node))
+    {
+        <span class="hljs-comment"><span class="hljs-comment">// Remove the value from node</span></span>
+        removeValue(node, value);
+        <span class="hljs-comment"><span class="hljs-comment">// Try to merge the parent</span></span>
+        <span class="hljs-keyword"><span class="hljs-keyword">if</span></span> (parent != <span class="hljs-literal"><span class="hljs-literal">nullptr</span></span>)
+            tryMerge(parent);
+    }
+    <span class="hljs-keyword"><span class="hljs-keyword">else</span></span>
+    {
+        <span class="hljs-comment"><span class="hljs-comment">// Remove the value in a child if the value is entirely contained in it</span></span>
+        <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span> i = getQuadrant(box, mGetBox(value));
+        <span class="hljs-keyword"><span class="hljs-keyword">if</span></span> (i != <span class="hljs-number"><span class="hljs-number">-1</span></span>)
+            remove(node-&gt;children[<span class="hljs-keyword"><span class="hljs-keyword">static_cast</span></span>&lt;<span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::<span class="hljs-keyword"><span class="hljs-keyword">size_t</span></span>&gt;(i)].get(), node, computeBox(box, i), value);
+        <span class="hljs-comment"><span class="hljs-comment">// Otherwise, we remove the value from the current node</span></span>
+        <span class="hljs-keyword"><span class="hljs-keyword">else</span></span>
+            removeValue(node, value);
+    }
+}</code></pre><br>
+Если текущий узел является листом, то мы удаляем значение из списка значений текущего узла <br>
+и пытаемся объединить этот узел с сестринскими узлами и его родителем. В противном случае, мы определяем, в каком квадранте находится ограничивающий прямоугольник значения. Если он полностью содержится в дочернем узле, то выполняем рекурсивный вызов. В противном случае, удаляем из значений текущего узла.<br>
+<br>
+Так как нас не волнует порядок хранимых в узле значений, при стирании я использую небольшую оптимизацию: просто меняю стираемое значение с последним и удаляю его:<br>
+<br>
+<pre><code class="cpp hljs"><span class="hljs-function"><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">void</span></span></span><span class="hljs-function"> </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">removeValue</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">(Node* node, </span></span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-params"><span class="hljs-keyword">const</span></span></span></span><span class="hljs-function"><span class="hljs-params"> T&amp; value)</span></span></span><span class="hljs-function">
+</span></span>{
+    <span class="hljs-comment"><span class="hljs-comment">// Find the value in node-&gt;values</span></span>
+    <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span> it = <span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::find_if(<span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::begin(node-&gt;values), <span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::end(node-&gt;values),
+        [<span class="hljs-keyword"><span class="hljs-keyword">this</span></span>, &amp;value](<span class="hljs-keyword"><span class="hljs-keyword">const</span></span> <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span>&amp; rhs){ <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> mEqual(value, rhs); });
+    assert(it != <span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::end(node-&gt;values) &amp;&amp; <span class="hljs-string"><span class="hljs-string">"Trying to remove a value that is not present in the node"</span></span>);
+    <span class="hljs-comment"><span class="hljs-comment">// Swap with the last element and pop back</span></span>
+    *it = <span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::move(node-&gt;values.back());
+    node-&gt;values.pop_back();
+}</code></pre><br>
+Также нам нужно взглянуть на <code>tryMerge</code>:<br>
+<br>
+<pre><code class="cpp hljs"><span class="hljs-function"><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">void</span></span></span><span class="hljs-function"> </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">tryMerge</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">(Node* node)</span></span></span><span class="hljs-function">
+</span></span>{
+    assert(node != <span class="hljs-literal"><span class="hljs-literal">nullptr</span></span>);
+    assert(!isLeaf(node) &amp;&amp; <span class="hljs-string"><span class="hljs-string">"Only interior nodes can be merged"</span></span>);
+    <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span> nbValues = node-&gt;values.size();
+    <span class="hljs-keyword"><span class="hljs-keyword">for</span></span> (<span class="hljs-keyword"><span class="hljs-keyword">const</span></span> <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span>&amp; child : node-&gt;children)
+    {
+        <span class="hljs-keyword"><span class="hljs-keyword">if</span></span> (!isLeaf(child.get()))
+            <span class="hljs-keyword"><span class="hljs-keyword">return</span></span>;
+        nbValues += child-&gt;values.size();
+    }
+    <span class="hljs-keyword"><span class="hljs-keyword">if</span></span> (nbValues &lt;= Threshold)
+    {
+        node-&gt;values.reserve(nbValues);
+        <span class="hljs-comment"><span class="hljs-comment">// Merge the values of all the children</span></span>
+        <span class="hljs-keyword"><span class="hljs-keyword">for</span></span> (<span class="hljs-keyword"><span class="hljs-keyword">const</span></span> <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span>&amp; child : node-&gt;children)
+        {
+            <span class="hljs-keyword"><span class="hljs-keyword">for</span></span> (<span class="hljs-keyword"><span class="hljs-keyword">const</span></span> <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span>&amp; value : child-&gt;values)
+                node-&gt;values.push_back(value);
+        }
+        <span class="hljs-comment"><span class="hljs-comment">// Remove the children</span></span>
+        <span class="hljs-keyword"><span class="hljs-keyword">for</span></span> (<span class="hljs-keyword"><span class="hljs-keyword">auto</span></span>&amp; child : node-&gt;children)
+            child.reset();
+    }
+}</code></pre><br>
+<code>tryMerge</code> проверяет, что все дочерние узлы являются листьями и что общее количество его значений и значений дочерних узлов меньше, чем threshold. Если это так, то мы копируем все значения из дочерних узлов в текущий узел и удаляем дочерние узлы.<br>
+<br>
+<h1>Поиск пересечений</h1><br>
+<h2>Пересечение с прямоугольником</h2><br>
+Наконец, мы добрались до самого интересного: до поиска пересечений. Первый способ применения — получение всех значений, пересекающих заданный прямоугольник. Например, это нужно для выполнения отсечения.<br>
+<br>
+Этим будет заниматься <code>query</code>:<br>
+<br>
+<pre><code class="cpp hljs"><span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::<span class="hljs-built_in"><span class="hljs-built_in">vector</span></span>&lt;T&gt; query(<span class="hljs-keyword"><span class="hljs-keyword">const</span></span> Box&lt;Float&gt;&amp; box) <span class="hljs-keyword"><span class="hljs-keyword">const</span></span>
+{
+    <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span> values = <span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::<span class="hljs-built_in"><span class="hljs-built_in">vector</span></span>&lt;T&gt;();
+    query(mRoot.get(), mBox, box, values);
+    <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> values;
+}</code></pre><br>
+В этом методе мы просто выделяем <code>std::vector</code>, который будет содержать значения, пересекающие ограничивающий прямоугольник, и вызываем вспомогательный метод:<br>
+<br>
+<pre><code class="cpp hljs"><span class="hljs-function"><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">void</span></span></span><span class="hljs-function"> </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">query</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">(Node* node, </span></span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-params"><span class="hljs-keyword">const</span></span></span></span><span class="hljs-function"><span class="hljs-params"> Box&lt;Float&gt;&amp; box, </span></span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-params"><span class="hljs-keyword">const</span></span></span></span><span class="hljs-function"><span class="hljs-params"> Box&lt;Float&gt;&amp; queryBox, </span></span><span class="hljs-built_in"><span class="hljs-function"><span class="hljs-params"><span class="hljs-built_in">std</span></span></span></span><span class="hljs-function"><span class="hljs-params">::</span></span><span class="hljs-built_in"><span class="hljs-function"><span class="hljs-params"><span class="hljs-built_in">vector</span></span></span></span><span class="hljs-function"><span class="hljs-params">&lt;T&gt;&amp; values)</span></span></span><span class="hljs-function"> </span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">const</span></span></span><span class="hljs-function">
+</span></span>{
+    assert(node != <span class="hljs-literal"><span class="hljs-literal">nullptr</span></span>);
+    assert(queryBox.intersects(box));
+    <span class="hljs-keyword"><span class="hljs-keyword">for</span></span> (<span class="hljs-keyword"><span class="hljs-keyword">const</span></span> <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span>&amp; value : node-&gt;values)
+    {
+        <span class="hljs-keyword"><span class="hljs-keyword">if</span></span> (queryBox.intersects(mGetBox(value)))
+            values.push_back(value);
+    }
+    <span class="hljs-keyword"><span class="hljs-keyword">if</span></span> (!isLeaf(node))
+    {
+        <span class="hljs-keyword"><span class="hljs-keyword">for</span></span> (<span class="hljs-keyword"><span class="hljs-keyword">auto</span></span> i = <span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::<span class="hljs-keyword"><span class="hljs-keyword">size_t</span></span>(<span class="hljs-number"><span class="hljs-number">0</span></span>); i &lt; node-&gt;children.size(); ++i)
+        {
+            <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span> childBox = computeBox(box, <span class="hljs-keyword"><span class="hljs-keyword">static_cast</span></span>&lt;<span class="hljs-keyword"><span class="hljs-keyword">int</span></span>&gt;(i));
+            <span class="hljs-keyword"><span class="hljs-keyword">if</span></span> (queryBox.intersects(childBox))
+                query(node-&gt;children[i].get(), childBox, queryBox, values);
+        }
+    }
+}</code></pre><br>
+Сначала мы складываем все значения, хранящиеся в текущем узле, которые пересекаются с запрашиваемым прямоугольником. Затем, если текущий узел является внутренним, мы выполняем рекурсивный вызов для каждого дочернего узла, чей ограничивающий прямоугольник пересекается с запрашиваемым прямоугольником.<br>
+<br>
+<h2>Все попарные пересечения</h2><br>
+Второй поддерживаемый способ применения — поиск всех хранящихся в дереве квадрантов пар значений, которые пересекаются. Это особенно полезно при создании физического движка. Данную задачу можно решить при помощи метода <code>query</code>. И в самом деле, мы можем вызвать <code>query</code> для ограничивающего прямоугольника всех значений. Однако, это можно сделать более эффективно, добавляя только по одному пересечению для пары (при помощи <code>query</code> мы будем находить их дважды).<br>
+<br>
+Чтобы реализовать это, нам нужно учесть, что пересечение может происходить только<br>
+<br>
+<ul>
+    <li>между двумя значениями, хранящимися в одном узле</li>
+</ul><br>
+или<br>
+<br>
+<ul>
+    <li>между значением, хранящимся в узле, и ещё одним значением, хранящемся в потомке этого узла.</li>
+</ul><br>
+Благодаря этому мы должны проверять только пересечение между:<br>
+<br>
+<ul>
+    <li>значением и следующими значениями, хранящимися в том же узле</li>
+</ul><br>
+и<br>
+<br>
+<ul>
+    <li>значением и значениями, хранящимися в потомке.</li>
+</ul><br>
+Таким образом, мы точно не будем дважды сообщать об одном пересечении.<br>
+<br>
+Вот код <code>findAllIntersections</code>:<br>
+<br>
+<pre><code class="cpp hljs"><span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::<span class="hljs-built_in"><span class="hljs-built_in">vector</span></span>&lt;<span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::pair&lt;T, T&gt;&gt; findAllIntersections() <span class="hljs-keyword"><span class="hljs-keyword">const</span></span>
+{
+    <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span> intersections = <span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::<span class="hljs-built_in"><span class="hljs-built_in">vector</span></span>&lt;<span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::pair&lt;T, T&gt;&gt;();
+    findAllIntersections(mRoot.get(), intersections);
+    <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> intersections;
+}</code></pre><br>
+Мы снова просто выделяем <code>std::vector</code> для хранения пересечений и вызываем вспомогательную функцию:<br>
+<br>
+<pre><code class="cpp hljs"><span class="hljs-function"><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">void</span></span></span><span class="hljs-function"> </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">findAllIntersections</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">(Node* node, </span></span><span class="hljs-built_in"><span class="hljs-function"><span class="hljs-params"><span class="hljs-built_in">std</span></span></span></span><span class="hljs-function"><span class="hljs-params">::</span></span><span class="hljs-built_in"><span class="hljs-function"><span class="hljs-params"><span class="hljs-built_in">vector</span></span></span></span><span class="hljs-function"><span class="hljs-params">&lt;</span></span><span class="hljs-built_in"><span class="hljs-function"><span class="hljs-params"><span class="hljs-built_in">std</span></span></span></span><span class="hljs-function"><span class="hljs-params">::pair&lt;T, T&gt;&gt;&amp; intersections)</span></span></span><span class="hljs-function"> </span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">const</span></span></span><span class="hljs-function">
+</span></span>{
+    <span class="hljs-comment"><span class="hljs-comment">// Find intersections between values stored in this node</span></span>
+    <span class="hljs-comment"><span class="hljs-comment">// Make sure to not report the same intersection twice</span></span>
+    <span class="hljs-keyword"><span class="hljs-keyword">for</span></span> (<span class="hljs-keyword"><span class="hljs-keyword">auto</span></span> i = <span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::<span class="hljs-keyword"><span class="hljs-keyword">size_t</span></span>(<span class="hljs-number"><span class="hljs-number">0</span></span>); i &lt; node-&gt;values.size(); ++i)
+    {
+        <span class="hljs-keyword"><span class="hljs-keyword">for</span></span> (<span class="hljs-keyword"><span class="hljs-keyword">auto</span></span> j = <span class="hljs-built_in"><span class="hljs-built_in">std</span></span>::<span class="hljs-keyword"><span class="hljs-keyword">size_t</span></span>(<span class="hljs-number"><span class="hljs-number">0</span></span>); j &lt; i; ++j)
+        {
+            <span class="hljs-keyword"><span class="hljs-keyword">if</span></span> (mGetBox(node-&gt;values[i]).intersects(mGetBox(node-&gt;values[j])))
+                intersections.emplace_back(node-&gt;values[i], node-&gt;values[j]);
+        }
+    }
+    <span class="hljs-keyword"><span class="hljs-keyword">if</span></span> (!isLeaf(node))
+    {
+        <span class="hljs-comment"><span class="hljs-comment">// Values in this node can intersect values in descendants</span></span>
+        <span class="hljs-keyword"><span class="hljs-keyword">for</span></span> (<span class="hljs-keyword"><span class="hljs-keyword">const</span></span> <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span>&amp; child : node-&gt;children)
+        {
+            <span class="hljs-keyword"><span class="hljs-keyword">for</span></span> (<span class="hljs-keyword"><span class="hljs-keyword">const</span></span> <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span>&amp; value : node-&gt;values)
+                findIntersectionsInDescendants(child.get(), value, intersections);
+        }
+        <span class="hljs-comment"><span class="hljs-comment">// Find intersections in children</span></span>
+        <span class="hljs-keyword"><span class="hljs-keyword">for</span></span> (<span class="hljs-keyword"><span class="hljs-keyword">const</span></span> <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span>&amp; child : node-&gt;children)
+            findAllIntersections(child.get(), intersections);
+    }
+}</code></pre><br>
+На первом этапе проверяются пересечения между значениями, хранящимися в текущем узле. Затем, если текущий узел является внутренним, при помощи <code>findIntersectionInDescendants</code> проверяются пересечения между значениями, хранящимися в этом узле и значениями, хранящимися в его потомках. Наконец, мы выполняем рекурсивные вызовы.<br>
+<br>
+<code>findIntersectionsInDescendants</code> рекурсивно находит пересечения между заданным значением и всеми значениями, хранящимися в поддереве:<br>
+<br>
+<pre><code class="cpp hljs"><span class="hljs-function"><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">void</span></span></span><span class="hljs-function"> </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">findIntersectionsInDescendants</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">(Node* node, </span></span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-params"><span class="hljs-keyword">const</span></span></span></span><span class="hljs-function"><span class="hljs-params"> T&amp; value, </span></span><span class="hljs-built_in"><span class="hljs-function"><span class="hljs-params"><span class="hljs-built_in">std</span></span></span></span><span class="hljs-function"><span class="hljs-params">::</span></span><span class="hljs-built_in"><span class="hljs-function"><span class="hljs-params"><span class="hljs-built_in">vector</span></span></span></span><span class="hljs-function"><span class="hljs-params">&lt;</span></span><span class="hljs-built_in"><span class="hljs-function"><span class="hljs-params"><span class="hljs-built_in">std</span></span></span></span><span class="hljs-function"><span class="hljs-params">::pair&lt;T, T&gt;&gt;&amp; intersections)</span></span></span><span class="hljs-function"> </span><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">const</span></span></span><span class="hljs-function">
+</span></span>{
+    <span class="hljs-comment"><span class="hljs-comment">// Test against the values stored in this node</span></span>
+    <span class="hljs-keyword"><span class="hljs-keyword">for</span></span> (<span class="hljs-keyword"><span class="hljs-keyword">const</span></span> <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span>&amp; other : node-&gt;values)
+    {
+        <span class="hljs-keyword"><span class="hljs-keyword">if</span></span> (mGetBox(value).intersects(mGetBox(other)))
+            intersections.emplace_back(value, other);
+    }
+    <span class="hljs-comment"><span class="hljs-comment">// Test against values stored into descendants of this node</span></span>
+    <span class="hljs-keyword"><span class="hljs-keyword">if</span></span> (!isLeaf(node))
+    {
+        <span class="hljs-keyword"><span class="hljs-keyword">for</span></span> (<span class="hljs-keyword"><span class="hljs-keyword">const</span></span> <span class="hljs-keyword"><span class="hljs-keyword">auto</span></span>&amp; child : node-&gt;children)
+            findIntersectionsInDescendants(child.get(), value, intersections);
+    }
+}</code></pre><br>
+Вот и всё! Повторюсь, весь код выложен на <a href="https://github.com/pvigier/Quadtree">GitHub</a>.<br>
+<br>
+<h1>Полезные ресурсы</h1><br>
+Если вы хотите больше узнать о распознавании коллизий и структурах данных разбиения пространства, то рекомендую прочитать книгу Кристера Эриксона <a href="http://realtimecollisiondetection.net/">Real-Time Collision Detection</a>. В ней глубоко раскрыто множество тем и при этом книга написана очень понятным языком. Более того, главы можно читать по отдельности. Это отличный справочный источник.<br>
+<br>
+<h1>Заключение</h1><br>
+На этом работа с распознаванием коллизий завершена. Однако оно является только половиной физического движка. Вторая половина — это <a href="https://pvigier.github.io/2019/08/11/vagabond-2d-physics-engine.html">разрешение коллизий</a>.

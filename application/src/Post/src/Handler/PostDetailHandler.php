@@ -46,7 +46,7 @@ class PostDetailHandler implements RequestHandlerInterface
         }
         
         $data = [
-            'post' => $post
+            'post' => $post,
         ];
         return new HtmlResponse($this->renderer->render('post::post-detail', $data));
     }

@@ -8,11 +8,12 @@ return [
         'database' => 'blog',
         'username' => 'root',
         'password' => 'example',
-        'hostname' => 'db'
+        'hostname' => 'database',
+        'port' => '3306'
     ],
     'authentication' => [
         'pdo' => [
-            'dsn' => 'mysql:host=db;dbname=blog',
+            'dsn' => 'mysql:host=database;dbname=blog',
             'username' => 'root',
             'password' => 'example',
         ]

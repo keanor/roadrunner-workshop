@@ -6,4 +6,5 @@ coveralls-upload.json
 phpunit.xml
 
 application/vendor/
+application/rr
 server/server

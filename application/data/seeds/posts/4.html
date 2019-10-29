@@ -1,0 +1,103 @@
+<p><img src="https://habrastorage.org/webt/mt/h1/_d/mth1_dlp5ttlqdlmw5nlnkaguio.png" alt="HTML mess"></p><br>
+<p>Как можно создать web приложение без использования HTML? Для этого нам понадобится: новый браузер, QML и back-end на Java.</p><a name="habracut"></a><br>
+<h3 id="nemnogo-istorii">Немного истории</h3><br>
+<p>HTML создавался учеными в CERN как способ делиться научными статьями. Затем он превратился в удобный способ размещения информации в сети. Стало ясно, что функциональности гиперссылок мало, и тогда начали добавлять компоненты, формы, CSS. Но и этого было мало, нужна была динамика, добавили JavaScript. Но на всем этом не очень удобно разрабатывать, поэтому в дальнейшем появились js-фреймворки. Они пытаются устранить недостатки HTML. Но я думаю, что лучше лечить саму болезнь, чем симптомы. В этом нам поможет QML.</p><br>
+<h3 id="pristupim-k-resheniyu">Приступим к решению</h3><br>
+<p><em>Сразу хочу отметить, что это решение не является production-ready. Это "Hello World!" приложение, которое показывает чего можно достичь используя данные инструменты.</em></p><br>
+<h3 id="brauzer">Браузер</h3><br>
+<p>Поскольку нам не нужен разбор HTML, поэтому браузер мы напишем свой, на Qt5, QML и C++. Наш браузер должен взаимодействовать с back-end приложением и показывать информацию на экране. </p><br>
+<p>Схема работы браузера:</p><br>
+<ul>
+    <li>В адресной строке набираем URL ресурса и нажимаем <code>enter</code></li>
+    <li>С помощью HTTP запроса загружаем qml-файл на жесткий диск</li>
+    <li>С помощью HTTP запроса загружаем данные для qml-файла</li>
+    <li>Отображаем qml-файл с помощью <a href="https://doc.qt.io/qt-5/qml-qtquick-loader.html">Loader</a></li>
+</ul><br>
+<p>TabComponent.qml</p><br>
+<pre><code class="javascript hljs">...
+TextInput {
+    <span class="hljs-attr"><span class="hljs-attr">onAccepted</span></span>: {
+        <span class="hljs-keyword"><span class="hljs-keyword">var</span></span> result = siteLoader.loadSite(addressIpt.text)
+        <span class="hljs-keyword"><span class="hljs-keyword">if</span></span> (result === LoadResultType.SUCCESS) {
+            <span class="hljs-keyword"><span class="hljs-keyword">var</span></span> props = siteLoader.loadProperties(addressIpt.text)
+            <span class="hljs-keyword"><span class="hljs-keyword">var</span></span> qmlPath = siteLoader.getMainQmlPath(addressIpt.text)
+            pageLoader.setSource(qmlPath, props)
+        } <span class="hljs-keyword"><span class="hljs-keyword">else</span></span> {
+            ...
+        }
+    }
+}
+...
+Loader {
+    <span class="hljs-attr"><span class="hljs-attr">id</span></span>: pageLoader
+}</code></pre><br>
+<p>Здесь <code>siteLoader</code> это экземпляр C++ класса, который импортируются в qml. В нем реализована логика браузера. </p><br>
+<p><code>TextInput</code> это компонент адресной строки в браузере. При нажатии <code>enter</code> вызывается метод <code>onAccepted</code> и выполняется логика загрузки сайта.</p><br>
+<p>В QML есть возможность отображать файл по сети, но я не думаю что это хороший способ. В будущем можно прикрутить версионность, и если версии совпадают вообще не скачивать файл, а использовать тот что есть.</p><br>
+<p>Вот собственно и весь браузер. Давайте перейдем к back-end и UI.</p><br>
+<h3 id="back-end-i-ui">Back-end и UI</h3><br>
+<p>Back-end и UI это непосредственно наше web приложение. UI часть мы напишем на QML, a back-end у нас будет написан на <code>spring boot</code>, поскольку я Java программист. Первое что нам нужно это qml-файл с описанием нашего интерфейса.</p><br>
+<p>main.qml</p><br>
+<pre><code class="javascript hljs"><span class="hljs-keyword"><span class="hljs-keyword">import</span></span> QtQuick <span class="hljs-number"><span class="hljs-number">2.0</span></span>
+
+Rectangle {
+    <span class="hljs-attr"><span class="hljs-attr">color</span></span>: <span class="hljs-string"><span class="hljs-string">"lightgray"</span></span>
+    property alias textValue: helloText.text
+
+    Text {
+        <span class="hljs-attr"><span class="hljs-attr">id</span></span>: helloText
+        anchors.horizontalCenter: parent.horizontalCenter
+        font.pointSize: <span class="hljs-number"><span class="hljs-number">24</span></span>
+    }
+}</code></pre><br>
+<p>Тут все довольно просто.</p><br>
+<pre><code class="javascript hljs">property alias textValue: helloText.text</code></pre><br>
+<p>Эта строчка нужна чтобы вытащить свойство <code>text</code> наверх, чтобы можно было его проставить в <code>Loader</code>.<br>
+    Теперь добавим два эндпоинта:</p><br>
+<pre><code class="java hljs"><span class="hljs-meta"><span class="hljs-meta">@RestController</span></span>
+<span class="hljs-keyword"><span class="hljs-keyword">public</span></span> <span class="hljs-class"><span class="hljs-keyword"><span class="hljs-class"><span class="hljs-keyword">class</span></span></span><span class="hljs-class"> </span><span class="hljs-title"><span class="hljs-class"><span class="hljs-title">HelloController</span></span></span><span class="hljs-class"> </span></span>{
+
+    <span class="hljs-meta"><span class="hljs-meta">@GetMapping</span></span>(
+            value = <span class="hljs-string"><span class="hljs-string">"/main.qml"</span></span>,
+            produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    <span class="hljs-keyword"><span class="hljs-keyword">public</span></span> <span class="hljs-keyword"><span class="hljs-keyword">byte</span></span>[] mainQml() <span class="hljs-keyword"><span class="hljs-keyword">throws</span></span> IOException {
+        ClassPathResource resource = <span class="hljs-keyword"><span class="hljs-keyword">new</span></span> ClassPathResource(<span class="hljs-string"><span class="hljs-string">"main.qml"</span></span>);
+        <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> IOUtils.toByteArray(resource.getInputStream());
+    }
+
+    <span class="hljs-meta"><span class="hljs-meta">@GetMapping</span></span>(
+            value = <span class="hljs-string"><span class="hljs-string">"/getProperties"</span></span>,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    <span class="hljs-function"><span class="hljs-keyword"><span class="hljs-function"><span class="hljs-keyword">public</span></span></span><span class="hljs-function"> Object </span><span class="hljs-title"><span class="hljs-function"><span class="hljs-title">getProperties</span></span></span><span class="hljs-params"><span class="hljs-function"><span class="hljs-params">()</span></span></span><span class="hljs-function"> </span></span>{
+        <span class="hljs-keyword"><span class="hljs-keyword">return</span></span> <span class="hljs-string"><span class="hljs-string">"{\"textValue\": \"Hello World!\"}"</span></span>;
+    }
+}</code></pre><br>
+<p>Первый end-point вернет qml-файл, а второй — необходимые данные. Хранить файл в classpath не самое удачное решение. Тем более что в QML приложениях может быть много <code>qml</code> и <code>js</code> файлов. Но мы это сделали для простоты.</p><br>
+<p>В итоге мы получим:</p><br>
+<p><img src="https://habrastorage.org/webt/uk/um/ph/ukumph8s6qrxsj6rn-t8cahjx2i.png" alt="Hello world example"></p><br>
+<h3 id="plyusy-i-minusy">Плюсы и минусы</h3><br>
+<p>Давайте теперь рассмотрим плюсы и минусы данного подхода</p><br>
+<h4 id="plyusy">Плюсы</h4><br>
+<ul>
+    <li>UI код клиента относительно простой. Например нам не нужно использовать какие-то CSS хаки, чтобы сделать 2 колонки одинаковой <a href="https://stackoverflow.com/questions/2997767/how-do-i-keep-two-side-by-side-divs-the-same-height">высоты</a>.</li>
+    <li>Разработку UI можно вести в графическом дизайнере Qt Creator </li>
+    <li>Предположительно скорость работы приложений будет гораздо выше чем HTML</li>
+    <li>Использование десктопных UI компонент</li>
+</ul><br>
+<h4 id="minusy">Минусы</h4><br>
+<ul>
+    <li>Второй браузер O RLY? Пока не решен вопрос с безопасностью никто не включит код в мэйнстримные браузеры, а устанавливать второй браузер для "сайтов другого типа" никто не будет.</li>
+    <li>Безопасность. Сейчас она просто отсутствует. Можно сделать такую страничку, которая отформатирует жесткий диск.</li>
+    <li>Для production решения нужно решить сотню вопросов: стандарт, сессии, кэширование данных, безопасность, и.т.д. </li>
+    <li>Все находится в зачаточном состоянии </li>
+    <li>Отсутствие библиотеки UI компонентов, заточенной для создания web приложений</li>
+</ul><br>
+<p>Пока что минусов гораздо больше, чем плюсов. Ну это и понятно, это всего лишь прототип, который написан за пару дней, на коленках. Но все проблемы решаемы, по крайней мере я не вижу серьезных блокеров.</p><br>
+<p>Тогда зачем эта статья, спросите вы. </p><br>
+<p>На просторах интернета ничего похожего я не нашел, возможно я плохо искал, и уже существует что-то подобное. Либо это просто никому не нужно. В любом случае я хочу услышать от вас отзывы, и по ним понять, стоит ли заниматься этим делом.</p><br>
+<h3 id="resursy">Ресурсы</h3><br>
+<ul>
+    <li><a href="https://bitbucket.org/max_selivanov/drako/src/master/">Drako Web browser</a></li>
+    <li><a href="https://bitbucket.org/max_selivanov/hello-app/src/master/">Java Hello App </a></li>
+</ul><br>
+<p>P.S. Хочу заметить что данный способ в корне отличается от <a href="https://qmlweb.github.io/">QmlWeb</a>. В <code>QmlWeb</code> из qml-файла создается HTML+JS код и рендерится в браузере.</p>
