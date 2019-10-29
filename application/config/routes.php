@@ -36,9 +36,6 @@ return function (Application $app, MiddlewareFactory $factory, ContainerInterfac
     $app->get('/', App\Handler\HomePageHandler::class, 'home');   
     $app->get('/api/ping', App\Handler\PingHandler::class, 'api.ping');
     
-    // Hello
-    $app->get('/hello', App\Handler\HelloHandler::class, 'hello');
-    
     // Blog post
     $app->get('/post', Post\Handler\PostListHandler::class, 'post.list');
     $app->get('/post/detail', Post\Handler\PostDetailHandler::class, 'post.detail');
