@@ -2,8 +2,7 @@
 declare(strict_types = 1);
 namespace App;
 
-use App\Factory\RPCFactory;
-use Spiral\Goridge\RPC;
+use Zend\ServiceManager\Factory\InvokableFactory;
 
 /**
  * The configuration provider for the App module
@@ -12,7 +11,6 @@ use Spiral\Goridge\RPC;
  */
 class ConfigProvider
 {
-
     /**
      * Returns the configuration array
      *
@@ -34,10 +32,8 @@ class ConfigProvider
     {
         return [
             'factories' => [
-                RPC::class => RPCFactory::class,
-
                 Handler\HomePageHandler::class => Handler\HomePageHandlerFactory::class,
-                Handler\PingHandler::class => Handler\PingHandlerFactory::class,
+                Handler\PingHandler::class => InvokableFactory::class,
             ]
         ];
     }
